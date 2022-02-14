@@ -106,10 +106,6 @@ def on_trigger_event(event, context):
                 logger.exception(f"S3-SFTP: Error transferring S3 file '{s3_file.key}'.")
                 contents = str(ex)
                 filename = filename + '.x'
-            logger.info(f"S3-SFTP: Archiving S3 file '{s3_file.key}'.")
-            archive_file(bucket=bucket, filename=filename, contents=contents)
-            logger.info(f"S3-SFTP: Deleting S3 file '{s3_file.key}'.")
-            delete_file(s3_file)
 
 
 def connect_to_sftp(hostname, port, username, password, pkey):
@@ -189,47 +185,3 @@ def transfer_file(sftp_client, s3_file, filename):
         s3_file.download_fileobj(Fileobj=sftp_file)
     logger.info(f"S3-SFTP: Transferred '{ s3_file.key }' from S3 to SFTP as '{ filename }'")
 
-
-def delete_file(s3_file):
-    """
-    Delete file from S3.
-
-    This is only a one-liner, but it's pulled out into its own function
-    to make it easier to mock in tests, and to make the trigger
-    function easier to read.
-
-    Args:
-        s3_file: boto3.Object representing the S3 file
-
-    """
-    try:
-        s3_file.delete()
-    except botocore.exceptions.BotoCoreError as ex:
-        logger.exception(f"S3-SFTP: Error deleting '{ s3_file.key }' from S3.")
-    else:
-        logger.info(f"S3-SFTP: Deleted '{ s3_file.key }' from S3")
-
-
-def archive_file(*, bucket, filename, contents):
-    """
-    Write to S3 an archive file.
-
-    The archive does **not** contain the file that was sent, as we don't
-    want the data hanging around on S3. Instead it's just an empty marker
-    that represents the file. If the transfer errored, then the archive file
-    has a '.x' suffix, and will contain the error message.
-
-    Args:
-        bucket: string, S3 bucket name
-        filename: string, the name of the archive file
-        contents: string, the contents of the archive file - blank unless there
-            was an exception, in which case the exception message.
-
-    """
-    key = 'archive/{}'.format(filename)
-    try:
-        boto3.resource('s3').Object(bucket, key).put(Body=contents)
-    except botocore.exceptions.BotoCoreError as ex:
-        logger.exception(f"S3-SFTP: Error archiving '{ filename }' as '{ key }'.")
-    else:
-        logger.info(f"S3-SFTP: Archived '{ filename }' as '{ key }'.")
